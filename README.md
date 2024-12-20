@@ -89,6 +89,7 @@ Read our article here: https://blib.la/blog/comfyui-on-runpod
 | `COMFY_POLLING_INTERVAL_MS` | Time to wait between poll attempts in milliseconds.                                                                                                                                   | `250`    |
 | `COMFY_POLLING_MAX_RETRIES` | Maximum number of poll attempts. This should be increased the longer your workflow is running.                                                                                        | `500`    |
 | `SERVE_API_LOCALLY`         | Enable local API server for development and testing. See [Local Testing](#local-testing) for more details.                                                                            | disabled |
+| `HUGGINGFACE_ACCESS_TOKEN`   | Your READ access token from Hugging Face for accessing models.                                                                                                                       | `""`     |
 
 ### Upload image to AWS S3
 

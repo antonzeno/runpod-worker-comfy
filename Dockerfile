@@ -41,9 +41,10 @@ ADD src/extra_model_paths.yaml ./
 # Go back to the root
 WORKDIR /
 
-# Add scripts
+# Add scripts and fix line endings
 ADD src/start.sh src/restore_snapshot.sh src/rp_handler.py test_input.json ./
-RUN chmod +x /start.sh /restore_snapshot.sh
+RUN sed -i 's/\r$//' /start.sh /restore_snapshot.sh && \
+    chmod +x /start.sh /restore_snapshot.sh
 
 # Optionally copy the snapshot file
 ADD *snapshot*.json /
@@ -51,45 +52,35 @@ ADD *snapshot*.json /
 # Restore the snapshot to install custom nodes
 RUN /restore_snapshot.sh
 
-# Start container
-CMD ["/start.sh"]
-
 # Stage 2: Download models
 FROM base as downloader
 
-ARG HUGGINGFACE_ACCESS_TOKEN
-ARG MODEL_TYPE
+ENV HUGGINGFACE_ACCESS_TOKEN=""
 
 # Change working directory to ComfyUI
 WORKDIR /comfyui
 
-# Create necessary directories
-RUN mkdir -p models/checkpoints models/vae
+# Create necessary directories including custom_models
+RUN mkdir -p models/checkpoints models/vae models/clip models/loras models/unet models/loras custom_nodes 
 
-# Download checkpoints/vae/LoRA to include in image based on model type
-RUN if [ "$MODEL_TYPE" = "sdxl" ]; then \
-      wget -O models/checkpoints/sd_xl_base_1.0.safetensors https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors && \
-      wget -O models/vae/sdxl_vae.safetensors https://huggingface.co/stabilityai/sdxl-vae/resolve/main/sdxl_vae.safetensors && \
-      wget -O models/vae/sdxl-vae-fp16-fix.safetensors https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl_vae.safetensors; \
-    elif [ "$MODEL_TYPE" = "sd3" ]; then \
-      wget --header="Authorization: Bearer ${HUGGINGFACE_ACCESS_TOKEN}" -O models/checkpoints/sd3_medium_incl_clips_t5xxlfp8.safetensors https://huggingface.co/stabilityai/stable-diffusion-3-medium/resolve/main/sd3_medium_incl_clips_t5xxlfp8.safetensors; \
-    elif [ "$MODEL_TYPE" = "flux1-schnell" ]; then \
-      wget -O models/unet/flux1-schnell.safetensors https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/flux1-schnell.safetensors && \
-      wget -O models/clip/clip_l.safetensors https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors && \
-      wget -O models/clip/t5xxl_fp8_e4m3fn.safetensors https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors && \
-      wget -O models/vae/ae.safetensors https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/ae.safetensors; \
-    elif [ "$MODEL_TYPE" = "flux1-dev" ]; then \
-      wget --header="Authorization: Bearer ${HUGGINGFACE_ACCESS_TOKEN}" -O models/unet/flux1-dev.safetensors https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors && \
-      wget -O models/clip/clip_l.safetensors https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors && \
-      wget -O models/clip/t5xxl_fp8_e4m3fn.safetensors https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn.safetensors && \
-      wget --header="Authorization: Bearer ${HUGGINGFACE_ACCESS_TOKEN}" -O models/vae/ae.safetensors https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/ae.safetensors; \
-    fi
+# Custom nodes
+RUN git clone https://github.com/bash-j/mikey_nodes.git custom_nodes/mikey_nodes
+
+# Copy the download script from src
+COPY src/download_models.sh /download_models.sh
+RUN chmod +x /download_models.sh
+
+# Execute the download script
+RUN /download_models.sh
 
 # Stage 3: Final image
 FROM base as final
 
-# Copy models from stage 2 to the final image
+# Copy models directory structure
 COPY --from=downloader /comfyui/models /comfyui/models
+COPY --from=downloader /comfyui/custom_nodes /comfyui/custom_nodes
 
-# Start container
+# Modify start.sh to run download script first
+RUN sed -i '1i /download_models.sh' /start.sh
+
 CMD ["/start.sh"]
