@@ -80,7 +80,14 @@ FROM base as final
 COPY --from=downloader /comfyui/models /comfyui/models
 COPY --from=downloader /comfyui/custom_nodes /comfyui/custom_nodes
 
+# Copy the update script from src
+COPY src/update.sh /update.sh
+RUN chmod +x /update.sh
+
 # Modify start.sh to run download script first
 RUN sed -i '1i /download_models.sh' /start.sh
+
+# Optionally run the update script (uncomment if you want to run it during build)
+# RUN /update.sh
 
 CMD ["/start.sh"]

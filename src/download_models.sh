@@ -1,5 +1,7 @@
 #!/bin/bash
+set -x  # Enable debugging output
 
+echo "Starting model download..."
 # Function to check and create symlink or download
 setup_model() {
     local src_path="/workspace/ComfyUI$1"
